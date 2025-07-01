@@ -1,0 +1,10 @@
+transformers==4.44.2
+elasticsearch==8.15.0
+beir
+datasets==2.14.1
+tqdm
+scipy==1.13.1
+evaluate==0.4.1
+spacy==3.7.4
+accelerate==0.34.2
+faiss-cpu==1.7.4
