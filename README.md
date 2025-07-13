@@ -51,11 +51,11 @@ Originally developed for research, the codebase has been modularized and simplif
 
 | Method                          | Paper           | Description                                                  |
 | ------------------------------- | --------------- | ------------------------------------------------------------ |
-| **DRAGIN**                      | ACL 2024        | Retrieval triggered by attention entropy + query formulation via self-attention |
-| **FLARE-style**                 | EMNLP 2023      | Triggered on low-confidence tokens using token log-probs     |
-| **Fix-Length RAG**              | ACL 2024        | Fixed-length chunk retrieval with iterative decoding         |
-| **Fix-Sentence RAG**            | IR-CoT ACL 2025 | Sentence-level iterations with retrieval each turn           |
-| **Entity RAG**                  | SIGIR-AP 2024   | Trigger retrieval when named entity hallucination is detected |
+| **DRAGIN**                      | Su et al. ACL 2024        | Retrieval triggered by attention entropy + query formulation via self-attention |
+| **FLARE-style**                 | Jiang et al. EMNLP 2023      | Triggered on low-confidence tokens using token log-probs     |
+| **IC-RALM**              | Ram et al. TACL 2023        | Fixed-length chunk retrieval with iterative decoding         |
+| **IR-CoT**            | Trivedi et al. ACL 2023 | Sentence-level iterations with retrieval each turn           |
+| **Entity RAG**                  | Su et al. SIGIR-AP 2024   | Trigger retrieval when named entity hallucination is detected |
 | **Single Retrieval (Baseline)** |                 | Static retrieve-then-generate pipeline                       |
 | **No Retrieval (Ablation)**     |                 | Pure generation without retrieval                            |
 
