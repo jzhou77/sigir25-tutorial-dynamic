@@ -51,6 +51,7 @@ def build_elasticsearch(
     es.bulk_add_to_index(
         generate_actions=generate_actions(),
         progress=progress)
+    print(f'### Successfully built index "{index_name}" ###')
 
 
 if __name__ == '__main__':

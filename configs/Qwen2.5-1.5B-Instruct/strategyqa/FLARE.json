@@ -1,17 +1,18 @@
 {
     "model_name_or_path": "Qwen/Qwen2.5-1.5B-Instruct",
-    "method": "fix-length-retrieval",
-    "dataset": "2wikimultihopqa",
-    "data_path": "data/2wikimultihopqa",
+    "method": "token",
+    "dataset": "strategyqa",
+    "data_path": "data/strategyqa",
     "fewshot": 6,
-    "sample": 300,
+    "sample": 50,
     "shuffle": false,
     "generate_max_length": 64,
     "query_formulation": "direct",
-    "output_dir": "result/qwen2.5_1.5b_instruct_2wikimultihopqa",
+    "output_dir": "result/Qwen2.5-1.5B-Instruct/strategyqa/FLARE",
     "retriever": "BM25",
     "es_index_name": "wiki",
     "retrieve_topk": 3,
+    "hallucination_threshold": 1.0,
     "use_counter": true,
-    "fix_length": 15
+    "sentence_solver": "avg"
 }

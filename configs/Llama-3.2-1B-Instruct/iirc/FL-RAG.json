@@ -1,0 +1,17 @@
+{
+    "model_name_or_path": "/home/swh/.cache/huggingface/hub/models--meta-llama--Llama-3.2-1B-Instruct",
+    "method": "fix-length-retrieval",
+    "dataset": "iirc",
+    "data_path": "data/iirc",
+    "fewshot": 6,
+    "sample": 50,
+    "shuffle": false,
+    "generate_max_length": 64,
+    "query_formulation": "direct",
+    "output_dir": "result/Llama-3.2-1B-Instruct/iirc/FL-RAG",
+    "retriever": "BM25",
+    "es_index_name": "wiki",
+    "retrieve_topk": 3,
+    "use_counter": true,
+    "fix_length": 15
+}

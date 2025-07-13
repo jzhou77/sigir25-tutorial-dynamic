@@ -1,14 +1,14 @@
 {
     "model_name_or_path": "Qwen/Qwen2.5-1.5B-Instruct",
     "method": "non-retrieval",
-    "dataset": "2wikimultihopqa",
-    "data_path": "data/2wikimultihopqa",
+    "dataset": "iirc",
+    "data_path": "data/iirc",
     "fewshot": 6,
-    "sample": 300,
+    "sample": 50,
     "shuffle": false,
     "generate_max_length": 64,
     "query_formulation": "direct",
-    "output_dir": "result/qwen2.5_1.5b_instruct_2wikimultihopqa",
+    "output_dir": "result/Qwen2.5-1.5B-Instruct/iirc/wo-RAG",
     "es_index_name": "wiki",
     "use_counter": true
 }
