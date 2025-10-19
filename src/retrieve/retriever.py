@@ -11,7 +11,7 @@ import pandas as pd
 from transformers import AutoTokenizer, AutoModel
 
 import sys
-sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "beir"))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "beir"))
 from beir.retrieval.evaluation import EvaluateRetrieval
 from beir.retrieval.search.lexical import BM25Search
 from beir.retrieval.search.lexical.elastic_search import ElasticSearch
