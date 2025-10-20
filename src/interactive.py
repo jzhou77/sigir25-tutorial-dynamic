@@ -44,11 +44,15 @@ def interactive_loop(model, args):
     print("Interactive session started. Type /exit to quit. /help for commands.")
     history = []
     session_counter = copy(model.counter)
+    # multi-turn context config
+    use_context = True if getattr(args, "use_context", True) else False
+    context_window = int(getattr(args, "context_window", 5))
 
     def print_help():
         print("Commands:")
         print("  /exit            - exit the session")
         print("  /reset           - reset conversation history and counters")
+        print("  /context on|off  - enable or disable multi-turn context being sent to the model")
         print("  /history         - show past Q/A pairs in this session")
         print("  /save <path>     - save session history to a jsonl file")
         print("  /show_counter    - show generation/retrieval counters")
@@ -73,6 +77,20 @@ def interactive_loop(model, args):
                     history = []
                     model.counter = copy(session_counter)
                     print("Session reset.")
+                    continue
+                elif cmd == "/context":
+                    if len(parts) < 2:
+                        print(f"context is {'on' if use_context else 'off'}")
+                        continue
+                    val = parts[1].lower()
+                    if val in {"on", "true", "1"}:
+                        use_context = True
+                        print("Multi-turn context enabled.")
+                    elif val in {"off", "false", "0"}:
+                        use_context = False
+                        print("Multi-turn context disabled.")
+                    else:
+                        print("Usage: /context on|off")
                     continue
                 elif cmd == "/history":
                     if not history:
@@ -104,10 +122,23 @@ def interactive_loop(model, args):
                     print(f"Unknown command: {cmd}")
                     continue
 
-            # Normal question flow. We keep the demo and case empty by default
+            # Normal question flow. Build multi-turn `case` (conversation) if enabled.
             question = user
             demo = []
-            case = ""  # no fixed case; user can include instruction in the question
+            case = ""
+            if use_context and len(history) > 0:
+                # include up to the last `context_window` turns
+                items = history[-context_window:]
+                # build a simple conversation string with role prefixes
+                conv = []
+                for it in items:
+                    q = it.get("question", "")
+                    a = it.get("answer", "")
+                    conv.append(f"User: {q}")
+                    conv.append(f"Assistant: {a}")
+                # append the new user question at the end
+                conv.append(f"User: {question}")
+                case = "\n".join(conv) + "\nAssistant:"
 
             print("Thinking...")
             try:
