@@ -33,9 +33,9 @@ class ElasticSearch(object):
         
         self.es = Elasticsearch(
             [es_credentials["hostname"]], 
-            timeout=es_credentials["timeout"], 
+            request_timeout=es_credentials["timeout"], 
             retry_on_timeout=es_credentials["retry_on_timeout"], 
-            maxsize=es_credentials["maxsize"])
+            connections_per_node=es_credentials["maxsize"])
 
     def check_language_supported(self):
         """Check Language Supported in Elasticsearch
@@ -48,9 +48,12 @@ class ElasticSearch(object):
         """Check Elasticsearch Index Name"""
         # https://stackoverflow.com/questions/41585392/what-are-the-rules-for-index-names-in-elastic-search
         # Check 1: Must not contain the characters ===> #:\/*?"<>|,
-        for char in '#:\/*?"<>|,':
+        # Use a raw string literal for the set of forbidden characters to avoid
+        # DeprecationWarning about invalid escape sequences on some Python versions.
+        forbidden = r'#:\/*?"<>|,'
+        for char in forbidden:
             if char in self.index_name:
-                raise ValueError('Invalid Elasticsearch Index, must not contain the characters ===> #:\/*?"<>|,')
+                raise ValueError(r'Invalid Elasticsearch Index, must not contain the characters ===> #:\/*?"<>|,')
         
         # Check 2: Must not start with characters ===> _-+
         if self.index_name.startswith(("_", "-", "+")):

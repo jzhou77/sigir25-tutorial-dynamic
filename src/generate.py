@@ -14,58 +14,119 @@ nlp = spacy.load("en_core_web_sm")
 
 
 class BasicGenerator:
+    """Wrapper around a Hugging Face causal LM for simple generation tasks.
+
+    Responsibilities:
+      - load tokenizer, model config and causal LM from a model repo
+      - provide simple generation (`generate`) and attention-aware
+        generation (`generate_attn`) utilities used by higher-level RAG
+        classes.
+
+    Notes:
+      - This wrapper targets single-example generation (no batching).
+      - Some methods rely on `model.generate(..., output_scores=True,
+        return_dict_in_generate=True)` and `model.compute_transition_scores`.
+        Not all HF models implement those features identically.
+    """
+
     def __init__(self, model_name_or_path):
         logger.info(f"Loading model from {model_name_or_path}")
         self.tokenizer = AutoTokenizer.from_pretrained(model_name_or_path, trust_remote_code=True)
-        self.model_config = AutoConfig.from_pretrained(model_name_or_path,
-                    trust_remote_code = "falcon" in model_name_or_path)
-        self.model = AutoModelForCausalLM.from_pretrained(model_name_or_path, device_map="auto", 
-                    trust_remote_code = "falcon" in model_name_or_path)
+        self.model_config = AutoConfig.from_pretrained(
+            model_name_or_path,
+            trust_remote_code="falcon" in model_name_or_path,
+        )
+        self.model = AutoModelForCausalLM.from_pretrained(
+            model_name_or_path, device_map="auto", trust_remote_code="falcon" in model_name_or_path
+        )
+
         if self.model_config.model_type == "llama":
             self.space_token = "▁"
         else:
-            self.space_token = self.tokenizer.tokenize(' ')[0]
-        
+            self.space_token = self.tokenizer.tokenize(" ")[0]
+
         if self.tokenizer.pad_token is None:
             self.tokenizer.pad_token = self.tokenizer.eos_token
 
     def generate(self, input_text, max_length, return_logprobs=False):
+        """Generate text from a causal LM.
+
+        Args:
+            input_text (str): prompt text to condition on.
+            max_length (int): maximum number of new tokens to generate.
+            return_logprobs (bool): if True, return per-token log-probabilities
+                for the generated tokens in addition to the generated text.
+
+        Returns:
+            tuple: (text, tokens, logprobs)
+                - text (str): decoded generated text (without the prompt)
+                - tokens (list[str] or None): per-token decoded strings when
+                  `return_logprobs=True`, else None
+                - logprobs (list[float] or None): per-token log-probs when
+                  `return_logprobs=True`, else None
+        """
+
         input_ids = self.tokenizer.encode(input_text, return_tensors="pt")
         input_ids = input_ids.to(self.model.device)
         input_length = input_ids.shape[1]
-        attention_mask = torch.ones_like(input_ids).to(self.model.device) # must also be put onto model.device
+        attention_mask = torch.ones_like(input_ids).to(self.model.device)  # must also be put onto model.device
 
         if return_logprobs:
             outputs = self.model.generate(
-                input_ids = input_ids, 
-                attention_mask = attention_mask,
-                max_new_tokens = max_length, 
-                return_dict_in_generate = True, 
-                output_scores = True,
+                input_ids=input_ids,
+                attention_mask=attention_mask,
+                max_new_tokens=max_length,
+                return_dict_in_generate=True,
+                output_scores=True,
             )
             transition_scores = self.model.compute_transition_scores(
                 outputs.sequences, outputs.scores, normalize_logits=True
             )
 
             generated_tokens = outputs.sequences[:, input_length:]
-            text = self.tokenizer.decode(generated_tokens[0]) # text = "".join(tokens)
+            text = self.tokenizer.decode(generated_tokens[0])  # text = "".join(tokens)
             tokens = [self.tokenizer.decode(t) for t in generated_tokens[0]]
             logprobs = transition_scores[0]
             logprobs = [p.cpu().numpy() for p in logprobs]
             assert len(tokens) == len(logprobs)
             return text, tokens, logprobs
-        
+
         else:
             outputs = self.model.generate(
-                input_ids = input_ids, 
-                max_new_tokens = max_length, 
-                attention_mask = attention_mask,
+                input_ids=input_ids,
+                max_new_tokens=max_length,
+                attention_mask=attention_mask,
             )
             generated_tokens = outputs[:, input_length:]
             text = self.tokenizer.decode(generated_tokens[0])
             return text, None, None
     
     def generate_attn(self, input_text, max_length, solver="max", use_entropy = False, use_logprob = False):
+        """Generate text and extract token-level attention, logprob and entropy.
+
+        This method generates tokens and then computes aggregated attention
+        scores (per merged token), optional average log-probabilities and
+        token entropies. It merges subword tokens heuristically using a
+        whitespace token and returns values aligned to the merged tokens.
+
+        Args:
+            input_text (str): prompt text.
+            max_length (int): maximum number of new tokens to generate.
+            solver (str): how to aggregate attentions across heads/positions
+                ('max', 'avg', 'last_token').
+            use_entropy (bool): compute per-token entropy from output scores.
+            use_logprob (bool): compute per-token average log-probabilities.
+
+        Returns:
+            tuple: (text, seqlist, attns, seqlogprobs, seqentropies)
+                - text (str): decoded generated text
+                - seqlist (list[str]): merged token strings
+                - attns (list[float]): aggregated attention per merged token
+                - seqlogprobs (list[float] or None): avg logprob per merged
+                  token if `use_logprob` else None
+                - seqentropies (list[float] or None): entropy per merged
+                  token if `use_entropy` else None
+        """
         input_ids = self.tokenizer.encode(input_text, return_tensors="pt")
         input_ids = input_ids.to(self.model.device)
         input_length = input_ids.shape[1]

@@ -5,13 +5,17 @@ import tqdm
 import uuid
 import numpy as np
 import torch
-import faiss
+#import faiss
 import logging
 import pandas as pd
 from transformers import AutoTokenizer, AutoModel
 
 import sys
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "beir"))
+import beir
+logging.getLogger("beir_import_diag").info(f"imported beir module from: {getattr(beir, '__file__', 'built-in or package without __file__')}" )
+logging.getLogger("beir_import_diag").info(f"sys.path[0:5]={sys.path[0:5]}")
+
 from beir.retrieval.evaluation import EvaluateRetrieval
 from beir.retrieval.search.lexical import BM25Search
 from beir.retrieval.search.lexical.elastic_search import ElasticSearch
@@ -23,6 +27,54 @@ def get_random_doc_id():
     return f'_{uuid.uuid4()}'
 
 class BM25:
+    """Lightweight BM25 retrieval wrapper backed by a BEIR/Elasticsearch BM25Search.
+
+    This class provides a small interface to perform lexical BM25 retrieval for a
+    list of queries. It builds on the repository-local BEIR implementation
+    (wrapped by `EvaluateRetrieval`) and returns retrieved passage ids and
+    passages (texts) in a shape-friendly form for downstream use.
+
+    Usage:
+        tokenizer = AutoTokenizer.from_pretrained(...)
+        retriever = BM25(tokenizer=tokenizer, index_name="wiki", engine="elasticsearch")
+        docids, docs = retriever.retrieve(["query1", "query2"], topk=5)
+
+    Constructor args:
+        tokenizer: a HuggingFace tokenizer used only for optional query
+            truncation/padding. If `max_query_length` is provided to
+            `retrieve`, the tokenizer will be used to truncate queries.
+        index_name: Elasticsearch index name where the corpus is (or will be)
+            indexed.
+        engine: currently only 'elasticsearch' is supported (kept for API
+            compatibility).
+        **search_engine_kwargs: forwarded to the underlying BM25Search/ES
+            constructor if needed.
+
+    retrieve args/returns:
+        retrieve(queries: List[str], topk: int = 1, max_query_length: int = None)
+            - queries: list of query strings (length = batch size)
+            - topk: number of passages to return per query
+            - max_query_length: if provided, queries are tokenized and
+              truncated/padded to this length before search (tokenizer must be
+              provided)
+        returns: (docids, docs)
+            - docids: numpy array of shape (batch_size, topk) containing the
+              retrieved document ids (strings). When insufficient results are
+              found, dummy ids like '_<uuid>' are inserted.
+            - docs: numpy array of shape (batch_size, topk) containing the
+              retrieved document texts (strings). Empty strings are used for
+              missing documents.
+
+    Side effects and notes:
+        - If the underlying BM25Search is constructed with `initialize=True`,
+          the corpus will be indexed (and the index may be recreated). This
+          can be slow for large corpora; prefer constructing BM25Search with
+          `initialize=False` if the index already exists.
+        - This wrapper expects the repository-local `beir` implementation. The
+          module import order is adjusted in this file to prefer the local
+          `beir` package to avoid mismatches with any installed `beir`.
+
+    """
     def __init__(
         self,
         tokenizer: AutoTokenizer = None,
@@ -94,9 +146,13 @@ class BM25:
         return docids, docs
 
 
+# Add text info in elasticsearch hits, patching the original BM25Search.search method.
 def bm25search_search(self, corpus: Dict[str, Dict[str, str]], queries: Dict[str, str], top_k: int, *args, **kwargs) -> Dict[str, Dict[str, float]]:
     # Index the corpus within elastic-search
     # False, if the corpus has been already indexed
+    # corpus: dict of doc_id -> {"title":..., "text":...}
+    # queries: dict of query_id -> query_text
+    # output: dict mapping query_id -> { doc_id -> (score: float, text: str) }
     if self.initialize:
         self.index(corpus)
         # Sleep for few seconds so that elastic-search indexes the docs properly
@@ -115,7 +171,7 @@ def bm25search_search(self, corpus: Dict[str, Dict[str, str]], queries: Dict[str
         for (query_id, hit) in zip(query_ids_batch, results):
             scores = {}
             for corpus_id, score, text in hit['hits']:
-                scores[corpus_id] = (score, text)
+                scores[corpus_id] = (score, text) # including text
                 final_results[query_id] = scores
 
     return final_results
