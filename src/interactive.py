@@ -145,8 +145,37 @@ def interactive_loop(model, args):
                 last_counter = copy(model.counter)
                 answer = model.inference(question, demo, case)
             except Exception as e:
+                # Handle a common PyTorch indexing error inside generators (e.g. empty tensors)
+                msg = str(e)
                 print(f"Error during model inference: {e}")
-                continue
+                if isinstance(e, IndexError) and "index -1 is out of bounds" in msg:
+                    # Try a simpler fallback: build a plain prompt and call the low-level generator
+                    try:
+                        prompt = "".join([d["case"] + "\n" for d in demo])
+                        # if we have a multi-turn `case` already use it, else append the question
+                        if case and len(case) > 0:
+                            prompt = prompt + case
+                        else:
+                            prompt = prompt + question
+                        # use model.generator if available
+                        if hasattr(model, "generator"):
+                            gen_max = getattr(model, "generate_max_length", getattr(args, "generate_max_length", 128))
+                            text, _, _ = model.generator.generate(prompt, gen_max)
+                            answer = text.strip()
+                            if getattr(args, "use_counter", False):
+                                try:
+                                    model.counter.add_generate(text, model.generator.tokenizer)
+                                except Exception:
+                                    pass
+                            print("(Fallback generation used)")
+                        else:
+                            print("No generator available for fallback. Skipping.")
+                            continue
+                    except Exception as e2:
+                        print(f"Fallback generation also failed: {e2}")
+                        continue
+                else:
+                    continue
 
             answer = answer.strip()
             print(f"Assistant: {answer}\n")
