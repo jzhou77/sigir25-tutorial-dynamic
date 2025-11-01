@@ -79,11 +79,16 @@ class BasicGenerator:
                 return_dict_in_generate=True,
                 output_scores=True,
             )
+
+            # protect against empty generation (some models can return no new tokens)
+            generated_tokens = outputs.sequences[:, input_length:]
+            if generated_tokens.shape[1] == 0:
+                return "", [], []
+
             transition_scores = self.model.compute_transition_scores(
                 outputs.sequences, outputs.scores, normalize_logits=True
             )
 
-            generated_tokens = outputs.sequences[:, input_length:]
             text = self.tokenizer.decode(generated_tokens[0])  # text = "".join(tokens)
             tokens = [self.tokenizer.decode(t) for t in generated_tokens[0]]
             logprobs = transition_scores[0]
@@ -98,6 +103,8 @@ class BasicGenerator:
                 attention_mask=attention_mask,
             )
             generated_tokens = outputs[:, input_length:]
+            if generated_tokens.shape[1] == 0:
+                return "", None, None
             text = self.tokenizer.decode(generated_tokens[0])
             return text, None, None
     
@@ -140,6 +147,10 @@ class BasicGenerator:
             output_scores = True,
         )
         generated_tokens = outputs.sequences[:, input_length:]
+        # guard: if nothing was generated, return empty outputs
+        if generated_tokens.shape[1] == 0:
+            return "", [], [], None, None
+
         tokens = self.tokenizer.convert_ids_to_tokens(generated_tokens[0])
         text = self.tokenizer.decode(generated_tokens[0])
 
@@ -369,6 +380,10 @@ class TokenRAG(BasicRAG):
         super().__init__(args)
 
     def modifier(self, text, tokens, logprobs):
+        # defensive: if tokens or logprobs are empty, nothing to modify
+        if tokens is None or len(tokens) == 0 or logprobs is None or len(logprobs) == 0:
+            return text, None, False
+
         sentences = [sent.text.strip() for sent in nlp(text).sents]
         sentences = [sent for sent in sentences if len(sent) > 0]
 
@@ -464,6 +479,10 @@ class EntityRAG(TokenRAG):
         super().__init__(args)
     
     def modifier(self, text, tokens, logprobs):
+        # defensive: if tokens or logprobs are empty, nothing to modify
+        if tokens is None or len(tokens) == 0 or logprobs is None or len(logprobs) == 0:
+            return text, None, False
+
         sentences = [sent.text.strip() for sent in nlp(text).sents]
         sentences = [sent for sent in sentences if len(sent) > 0]
 
@@ -545,6 +564,10 @@ class AttnWeightRAG(BasicRAG):
         super().__init__(args)
     
     def modifier(self, text, tokens, attentions, weight):
+        # defensive: if tokens or attentions are empty, nothing to modify
+        if tokens is None or len(tokens) == 0 or attentions is None or len(attentions) == 0:
+            return False, text, None, None
+
         sentences = [sent.text.strip() for sent in nlp(text).sents]
         sentences = [sent for sent in sentences if len(sent) > 0]
         tid = 0
